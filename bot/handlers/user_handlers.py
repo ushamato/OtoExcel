@@ -448,21 +448,26 @@ class UserHandlers:
             # API endpoint
             url = "https://api.nowpayments.io/v1/payment"
             
-            # Admin bilgilerini veritabanından al
-            admin_name = "İsimsiz Admin"
+            # Admin bilgilerini değişkenlere tanımla
+            admin_name = "İsimsiz Kullanıcı"
             admin_username = "Bilinmiyor"
             
             try:
-                # Veritabanından admin adını al
-                with self.db.engine.connect() as conn:
-                    result = conn.execute(text("""
-                        SELECT admin_name FROM group_admins 
-                        WHERE user_id = :user_id
-                    """), {"user_id": admin_id})
-                    admin_data = result.fetchone()
-                    if admin_data and admin_data[0]:
-                        admin_name = admin_data[0]
-                        
+                # Kullanıcının admin olup olmadığını kontrol et
+                is_admin = await self.db.is_admin(str(admin_id))
+                
+                # Kullanıcı admin ise veritabanından bilgilerini al
+                if is_admin:
+                    # Veritabanından admin adını al
+                    with self.db.engine.connect() as conn:
+                        result = conn.execute(text("""
+                            SELECT admin_name FROM group_admins 
+                            WHERE user_id = :user_id
+                        """), {"user_id": admin_id})
+                        admin_data = result.fetchone()
+                        if admin_data and admin_data[0]:
+                            admin_name = admin_data[0]
+                
                 # Telegram API'den kullanıcı adını almaya çalış
                 try:
                     from telegram import Bot
@@ -482,11 +487,15 @@ class UserHandlers:
                         if user.last_name:
                             admin_username += f" {user.last_name}"
                     
-                    logger.info(f"Admin kullanıcı adı Telegram API'den alındı: {admin_username}")
+                    # Veritabanından alınamadıysa (admin değilse), Telegram'dan aldığımız ismi kullan
+                    if admin_name == "İsimsiz Kullanıcı":
+                        admin_name = admin_username
+                    
+                    logger.info(f"Kullanıcı bilgileri Telegram API'den alındı: {admin_username}")
                 except Exception as e:
-                    logger.error(f"Telegram API'den kullanıcı adı alma hatası: {str(e)}")
+                    logger.error(f"Telegram API'den kullanıcı bilgileri alma hatası: {str(e)}")
             except Exception as e:
-                logger.error(f"Admin bilgisi alma hatası: {str(e)}")
+                logger.error(f"Kullanıcı bilgisi alma hatası: {str(e)}")
             
             # API isteği için gerekli parametreler
             payload = {
@@ -674,8 +683,8 @@ class UserHandlers:
                     admin_id = None
                     logger.error(f"Admin ID alınamadı: {order_description}")
             
-            # Admin bilgilerini veritabanından al
-            admin_name = "İsimsiz Admin"
+            # Kullanıcı bilgilerini tanımla
+            admin_name = "İsimsiz Kullanıcı"
             admin_username = "Bilinmiyor"
             
             if admin_id:
@@ -697,6 +706,9 @@ class UserHandlers:
                             admin_username = user.first_name
                             if user.last_name:
                                 admin_username += f" {user.last_name}"
+                        
+                        # Telegram'dan alınan ismi varsayılan olarak kullan 
+                        admin_name = admin_username
                                 
                         # Kullanıcı admin değilse, ve ödeme başarılıysa admin yap
                         if not user_is_admin and (payment_status == "confirmed" or payment_status == "finished"):
@@ -707,21 +719,24 @@ class UserHandlers:
                             else:
                                 logger.info(f"Kullanıcı başarıyla admin yapıldı: {admin_id} ({admin_username})")
                                 
-                        logger.info(f"Admin kullanıcı adı Telegram API'den alındı: {admin_username}")
+                        # Kullanıcı admin ise veritabanından adını güncelle    
+                        elif user_is_admin:
+                            # Veritabanından admin adını al
+                            with self.db.engine.connect() as conn:
+                                result = conn.execute(text("""
+                                    SELECT admin_name FROM group_admins 
+                                    WHERE user_id = :user_id
+                                """), {"user_id": admin_id})
+                                admin_data = result.fetchone()
+                                if admin_data and admin_data[0]:
+                                    admin_name = admin_data[0]
+                                    
+                        logger.info(f"Kullanıcı bilgileri Telegram API'den alındı: {admin_username}")
                     except Exception as e:
-                        logger.error(f"Telegram API'den kullanıcı adı alma hatası: {str(e)}")
+                        logger.error(f"Telegram API'den kullanıcı bilgileri alma hatası: {str(e)}")
                     
-                    # Veritabanından admin adını al
-                    with self.db.engine.connect() as conn:
-                        result = conn.execute(text("""
-                            SELECT admin_name FROM group_admins 
-                            WHERE user_id = :user_id
-                        """), {"user_id": admin_id})
-                        admin_data = result.fetchone()
-                        if admin_data and admin_data[0]:
-                            admin_name = admin_data[0]
                 except Exception as e:
-                    logger.error(f"Admin bilgisi alma hatası: {str(e)}")
+                    logger.error(f"Kullanıcı bilgisi alma hatası: {str(e)}")
             
             # Admin bilgilerini ekle
             if admin_id:
@@ -798,22 +813,15 @@ class UserHandlers:
                 "x-api-key": NOWPAYMENTS_API_KEY
             }
             
-            # Admin bilgilerini veritabanından al
-            admin_name = "İsimsiz Admin"
+            # Kullanıcı bilgilerini tanımla
+            admin_name = "İsimsiz Kullanıcı"
             admin_username = "Bilinmiyor"
             
             try:
-                # Veritabanından admin adını al
-                with self.db.engine.connect() as conn:
-                    result = conn.execute(text("""
-                        SELECT admin_name FROM group_admins 
-                        WHERE user_id = :user_id
-                    """), {"user_id": admin_id})
-                    admin_data = result.fetchone()
-                    if admin_data and admin_data[0]:
-                        admin_name = admin_data[0]
+                # Kullanıcının admin olup olmadığını kontrol et
+                is_admin = await self.db.is_admin(str(admin_id))
                 
-                # Telegram API'den kullanıcı adını almaya çalış
+                # Telegram API'den kullanıcı bilgilerini al
                 try:
                     from telegram import Bot
                     
@@ -832,11 +840,26 @@ class UserHandlers:
                         if user.last_name:
                             admin_username += f" {user.last_name}"
                     
-                    logger.info(f"Admin kullanıcı adı Telegram API'den alındı: {admin_username}")
+                    # Telegram'dan alınan ismi varsayılan olarak kullan
+                    admin_name = admin_username
+                    
+                    # Kullanıcı admin ise veritabanından adını güncelle
+                    if is_admin:
+                        # Veritabanından admin adını al
+                        with self.db.engine.connect() as conn:
+                            result = conn.execute(text("""
+                                SELECT admin_name FROM group_admins 
+                                WHERE user_id = :user_id
+                            """), {"user_id": admin_id})
+                            admin_data = result.fetchone()
+                            if admin_data and admin_data[0]:
+                                admin_name = admin_data[0]
+                    
+                    logger.info(f"Kullanıcı bilgileri Telegram API'den alındı: {admin_username}")
                 except Exception as e:
-                    logger.error(f"Telegram API'den kullanıcı adı alma hatası: {str(e)}")
+                    logger.error(f"Telegram API'den kullanıcı bilgileri alma hatası: {str(e)}")
             except Exception as e:
-                logger.error(f"Admin bilgisi alma hatası: {str(e)}")
+                logger.error(f"Kullanıcı bilgisi alma hatası: {str(e)}")
             
             # API isteği gönder
             response = requests.get(url, headers=headers)

@@ -40,34 +40,68 @@ async def send_payment_notification(payment_data, admin_id=None):
                 except (IndexError, ValueError):
                     admin_id = "bilinmiyor"
         
-        # Admin adını veritabanından al
-        admin_name = "İsimsiz Admin"
+        # Admin adı ve kullanıcı adı için varsayılan değerler
+        admin_name = "İsimsiz Kullanıcı"
         admin_username = "Bilinmiyor"
         
         # payment_data'dan admin bilgilerini al (varsa)
-        if payment_data.get("admin_name"):
-            admin_name = payment_data.get("admin_name")
         if payment_data.get("admin_username"):
             admin_username = payment_data.get("admin_username")
         
+        # Kullanıcı adını admin adı olarak kullan (kullanıcı adı varsa)
+        if admin_username != "Bilinmiyor":
+            admin_name = admin_username
+        # Sonra özel bir admin adı varsa, onu kullan
+        if payment_data.get("admin_name"):
+            admin_name = payment_data.get("admin_name")
+            
         # Eğer payment_data'da yoksa ve admin_id varsa, veritabanından almayı dene
-        if admin_id and (admin_name == "İsimsiz Admin" or admin_username == "Bilinmiyor"):
+        if admin_id and admin_name == "İsimsiz Kullanıcı":
             try:
-                db = DatabaseManager()
-                # Veritabanından admin bilgilerini al
-                with db.engine.connect() as conn:
-                    logger.info(f"Admin bilgisi sorgulanıyor: admin_id={admin_id}")
-                    result = conn.execute(text("""
-                        SELECT admin_name FROM group_admins 
-                        WHERE user_id = :user_id
-                    """), {"user_id": admin_id})
-                    admin_data = result.fetchone()
-                    logger.info(f"Veritabanı sorgu sonucu: {admin_data}")
-                    if admin_data and admin_data[0]:
-                        admin_name = admin_data[0]
-                        logger.info(f"Admin adı veritabanından alındı: {admin_name}")
+                # Önce Telegram API'den kullanıcı bilgilerini almayı dene
+                try:
+                    from telegram import Bot
+                    import asyncio
+                    
+                    # Bot oluştur (notification token değil, ana bot token kullan)
+                    from bot.config import TOKEN
+                    bot = Bot(token=TOKEN)
+                    
+                    # Kullanıcı bilgilerini al
+                    user = await bot.get_chat(admin_id)
+                    
+                    # Kullanıcı adını al (varsa)
+                    if user.username:
+                        admin_username = user.username
+                        admin_name = user.username  # Kullanıcı adını admin adı olarak kullan
                     else:
-                        logger.warning(f"Admin adı veritabanında bulunamadı: {admin_id}")
+                        # Kullanıcı adı yoksa, adını kullan
+                        telegram_name = user.first_name
+                        if user.last_name:
+                            telegram_name += f" {user.last_name}"
+                        admin_name = telegram_name
+                        admin_username = telegram_name
+                    
+                    logger.info(f"Admin bilgileri Telegram API'den alındı: {admin_name} ({admin_username})")
+                except Exception as e:
+                    logger.error(f"Telegram API'den kullanıcı bilgileri alma hatası: {str(e)}")
+                    
+                    # Telegram API'den alınamazsa, veritabanından almayı dene
+                    db = DatabaseManager()
+                    # Veritabanından admin bilgilerini al
+                    with db.engine.connect() as conn:
+                        logger.info(f"Admin bilgisi sorgulanıyor: admin_id={admin_id}")
+                        result = conn.execute(text("""
+                            SELECT admin_name FROM group_admins 
+                            WHERE user_id = :user_id
+                        """), {"user_id": admin_id})
+                        admin_data = result.fetchone()
+                        logger.info(f"Veritabanı sorgu sonucu: {admin_data}")
+                        if admin_data and admin_data[0]:
+                            admin_name = admin_data[0]
+                            logger.info(f"Admin adı veritabanından alındı: {admin_name}")
+                        else:
+                            logger.warning(f"Admin adı veritabanında bulunamadı: {admin_id}")
             except Exception as e:
                 logger.error(f"Admin bilgisi alma hatası: {str(e)}")
         
