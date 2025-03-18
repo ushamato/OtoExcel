@@ -1,0 +1,37 @@
+services:
+  ottoexcel_db:
+    image: postgres:15
+    container_name: ottoexcel_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ottoexcel
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ottoexcel_bot:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: ottoexcel_bot
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - SUPER_ADMIN_ID=${SUPER_ADMIN_ID}
+      - DATABASE_URL=postgresql://postgres:postgres@ottoexcel_db:5432/ottoexcel
+      - POSTGRES_ENCRYPTION_KEY=${POSTGRES_ENCRYPTION_KEY}
+      - DEV_MODE=true
+    volumes:
+      - ./:/app
+    depends_on:
+      ottoexcel_db:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  postgres_data: 

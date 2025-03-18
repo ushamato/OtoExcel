@@ -1,0 +1,69 @@
+name: Deploy OttoExcel Bot
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            # Proje dizinine git
+            mkdir -p ~/ottoexcel
+            cd ~/ottoexcel
+            
+            # docker-compose.yml dosyasını indirin (eğer yoksa)
+            if [ ! -f docker-compose.yml ]; then
+              curl -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml
+            fi
+            
+            # .env dosyasını oluştur
+            cat > .env << EOL
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            SUPER_ADMIN_ID=${{ secrets.SUPER_ADMIN_ID }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_ENCRYPTION_KEY=${{ secrets.POSTGRES_ENCRYPTION_KEY }}
+            NOWPAYMENTS_API_KEY=${{ secrets.NOWPAYMENTS_API_KEY }}
+            NOTIFICATION_BOT_TOKEN=${{ secrets.NOTIFICATION_BOT_TOKEN }}
+            DOCKER_IMAGE=ghcr.io/${{ github.repository }}:latest
+            EOL
+            
+            # Uygulamayı yeniden başlat
+            docker-compose pull
+            docker-compose down
+            docker-compose up -d
+            
+            # Konteyner durumunu göster
+            docker-compose ps 
