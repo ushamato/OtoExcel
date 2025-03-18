@@ -308,9 +308,11 @@ class FormHandlers:
                        'mail' in field.lower() or 'maıl' in field.lower() or \
                        'MAIL' in field or 'MAİL' in field or 'EMAIL' in field or 'EMAİL' in field or \
                        'EPOSTA' in field or 'E-POSTA' in field:
-                        logger.info(f"Mail alanı tespit edildi: '{field}'")
-                        mail_value = value
-                        mail_field = field
+                        # Mail şifresi alanını atla
+                        if not any(keyword in field.lower() for keyword in ['şifre', 'sifre', 'password', 'parola']):
+                            logger.info(f"Mail alanı tespit edildi: '{field}'")
+                            mail_value = value
+                            mail_field = field
                 
                 # Mail alanı varsa ve değer geçerli mail değilse uyarı ver
                 if mail_value:
