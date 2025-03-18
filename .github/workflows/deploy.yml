@@ -44,6 +44,16 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
+            # Docker Compose yükleme
+            if ! command -v docker-compose &> /dev/null && ! command -v docker compose &> /dev/null; then
+              echo "Docker Compose yükleniyor..."
+              # Docker Compose bileşenini yükle (daha güvenilir yöntem)
+              sudo curl -L "https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
+              echo "Docker Compose yüklendi:"
+              docker-compose --version
+            fi
+            
             # Proje dizinine git
             mkdir -p ~/ottoexcel
             cd ~/ottoexcel
@@ -67,9 +77,9 @@ jobs:
             EOL
             
             # Uygulamayı yeniden başlat
-            docker-compose pull
-            docker-compose down
-            docker-compose up -d
+            docker-compose pull || docker compose pull
+            docker-compose down || docker compose down
+            docker-compose up -d || docker compose up -d
             
             # Konteyner durumunu göster
-            docker-compose ps 
+            docker-compose ps || docker compose ps 
