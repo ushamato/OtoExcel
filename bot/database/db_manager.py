@@ -519,8 +519,13 @@ class DatabaseManager:
     async def save_form_data(self, form_name: str, group_id: int, user_id: int, chat_id: int, data: str) -> int:
         """Form verisini kaydet ve submission_id'yi döndür"""
         try:
-            # .env dosyasından şifreleme anahtarını al
-            encryption_key = os.environ.get("POSTGRES_ENCRYPTION_KEY", "default_key_for_development")
+            # .env dosyasından şifreleme anahtarını al (.env ve GitHub secrets'a eklenmesi gerekli)
+            encryption_key = os.environ.get("POSTGRES_ENCRYPTION_KEY")
+            
+            # Şifreleme anahtarı kontrolü
+            if not encryption_key:
+                logger.error("POSTGRES_ENCRYPTION_KEY bulunamadı!")
+                return None
             
             with self.engine.connect() as conn:
                 # Önce form ve grup ID'sinin var olduğunu kontrol et
