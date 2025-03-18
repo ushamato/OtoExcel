@@ -47,8 +47,10 @@ class FormHandlers:
         self.engine = self.db.engine
         # Genel mail formatı için regex pattern
         self.mail_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-        # Sadece mail adresi alanları için anahtar kelimeler
-        self.mail_keywords = ['mail adresi', 'email adresi', 'e-posta adresi', 'mail', 'email', 'e-mail', 'e-posta', 'eposta', 'mail adres', 'email adres']  # Daha spesifik anahtar kelimeler
+        # Sadece mail adresi alanları için anahtar kelimeler - hepsi küçük harfli
+        self.mail_keywords = ['mail adresi', 'email adresi', 'e-posta adresi', 'mail', 'email', 
+                             'e-mail', 'e-posta', 'eposta', 'mail adres', 'email adres',
+                             'maıl', 'maıl adresi']
 
     @authorized_group_required
     @admin_required
@@ -208,7 +210,9 @@ class FormHandlers:
     async def validate_mail(self, field: str, value: str) -> tuple[bool, str]:
         """Mail adresini doğrula"""
         # Sadece mail adresi alanlarını kontrol et
-        if not any(keyword in field.lower() for keyword in self.mail_keywords):
+        field_lower = field.lower().replace('i', 'ı').replace('İ', 'ı')  # Türkçe karakter dönüşümü
+        
+        if not any(keyword in field_lower for keyword in self.mail_keywords):
             return True, ""
         
         # Mail formatını kontrol et
