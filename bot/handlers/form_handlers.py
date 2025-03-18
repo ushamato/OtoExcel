@@ -48,7 +48,7 @@ class FormHandlers:
         # Genel mail formatı için regex pattern
         self.mail_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
         # Sadece mail adresi alanları için anahtar kelimeler
-        self.mail_keywords = ['mail adresi', 'email adresi', 'e-posta adresi']  # Daha spesifik anahtar kelimeler
+        self.mail_keywords = ['mail adresi', 'email adresi', 'e-posta adresi', 'mail', 'email', 'e-mail', 'e-posta', 'eposta', 'mail adres', 'email adres']  # Daha spesifik anahtar kelimeler
 
     @authorized_group_required
     @admin_required
@@ -353,11 +353,38 @@ class FormHandlers:
                     # Güncel admin bakiyesini al
                     admin_balance = await self.db.bakiye_getir(form_admin_id)
                     
-                    await update.message.reply_text(
-                        f"✅ #{submission_id} Numaralı {form_name.capitalize()} Hesabı Excele işlendi. ✅\n\n"
-                        "📝 Yeni veri girişi için:\n"
-                        f"/form {form_name}"
-                    )
+                    # İsim soyisim bilgisini bul
+                    name_surname = None
+                    data_lines = form_data.split('\n')
+                    
+                    # Form alanlarını al
+                    form_info = await self.db.get_form(form_name)
+                    if form_info and form_info['fields']:
+                        fields = form_info['fields']
+                        
+                        # İsim Soyisim, Ad Soyad, Adı Soyadı gibi alanları ara
+                        name_field_keywords = ['isim soyisim', 'ad soyad', 'adı soyadı', 'ad ve soyad']
+                        
+                        for i, field in enumerate(fields):
+                            if i < len(data_lines) and any(keyword in field.lower() for keyword in name_field_keywords):
+                                name_surname = data_lines[i]
+                                break
+                        
+                        # Eğer bulunamadıysa ve verinin ilk satırı genellikle isim-soyisim ise
+                        if not name_surname and len(data_lines) > 0:
+                            name_surname = data_lines[0]  # İlk satırı isim-soyisim olarak kullan
+                    
+                    # Başarı mesajını hazırla
+                    success_message = f"✅ #{submission_id} Numaralı {form_name.capitalize()} Hesabı Excele işlendi. ✅\n"
+                    
+                    # İsim-Soyisim bilgisi varsa ekle
+                    if name_surname:
+                        success_message += f"{name_surname}\n"
+                    
+                    success_message += "\n📝 Yeni veri girişi için:\n"
+                    success_message += f"/form {form_name}"
+                    
+                    await update.message.reply_text(success_message)
                 else:
                     await update.message.reply_text("⛔️ Veriler kaydedilirken bir hata oluştu!")
                 
