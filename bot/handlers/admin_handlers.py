@@ -165,12 +165,14 @@ class AdminHandlers:
             admin_name = context.args[0]
             try:
                 user_id = int(context.args[1])
+                # Stringlerle çalışabilmesi için string'e çevir
+                user_id_str = str(user_id)
             except ValueError:
                 await update.message.reply_text("⛔️ Geçersiz Telegram ID! Sayısal bir değer giriniz.")
                 return
             
-            # Admin ekle
-            success = self.db.add_admin(user_id, user.id, admin_name)
+            # Admin ekle (await ile çağır ve parametre sırasını düzelt)
+            success = await self.db.add_admin(user_id_str, admin_name, str(user.id))
             
             if success:
                 await update.message.reply_text(
@@ -214,7 +216,7 @@ class AdminHandlers:
                 return
             
             # Admin sil
-            success = self.db.remove_admin(user_id)
+            success = await self.db.remove_admin(user_id)
             
             if success:
                 await update.message.reply_text(f"✅ {user_id} ID'li admin silindi!")
@@ -228,7 +230,7 @@ class AdminHandlers:
     @super_admin_required
     async def list_admins(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
-            admins = self.db.get_all_admins()
+            admins = await self.db.get_all_admins()
             
             if admins and len(admins) > 0:
                 message = "👥 Admin Listesi:\n\n"

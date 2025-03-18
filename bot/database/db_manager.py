@@ -224,7 +224,7 @@ class DatabaseManager:
             logger.error(f"Admin ekleme DB hatası: {str(e)}")
             return False
 
-    def remove_admin(self, user_id: int) -> bool:
+    async def remove_admin(self, user_id: int) -> bool:
         """Admin sil"""
         try:
             with self.engine.connect() as conn:
@@ -252,7 +252,7 @@ class DatabaseManager:
             logger.error(f"Admin silme DB hatası: {str(e)}")
             return False
 
-    def get_all_admins(self) -> list:
+    async def get_all_admins(self) -> list:
         try:
             with self.engine.connect() as conn:
                 # Telegram API'den admin isimlerini alamayız, bu yüzden veritabanında saklamamız gerekiyor
