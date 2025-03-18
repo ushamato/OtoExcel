@@ -174,11 +174,11 @@ class UserHandlers:
                 await update.message.reply_text(
                     "⛔️ Lütfen form adını belirtin!\n\n"
                     "📝 Doğru Kullanım:\n"
-                    "/rapor form_adi\n\n"
+                    "/rapor form adı\n\n"
                     "Örnek:\n"
                     "/rapor yahoo\n\n"
                     "📅 Belirli bir tarih aralığı için rapor almak isterseniz:\n"
-                    "/rapor form_adi GG.AA.YYYY GG.AA.YYYY\n\n"
+                    "/rapor form adı GG.AA.YYYY GG.AA.YYYY\n\n"
                     "Örnek:\n"
                     "/rapor yahoo 01.03.2025 10.03.2025"
                 )
@@ -237,13 +237,31 @@ class UserHandlers:
                     caption=caption
                 )
             else:
-                await update.message.reply_text(
-                    "⛔️ Rapor oluşturulamadı!\n\n"
-                    "Olası nedenler:\n"
-                    "• Form bulunamadı\n"
-                    "• Henüz veri girişi yapılmamış\n"
-                    "• Veritabanı hatası"
-                )
+                # Form var mı kontrol et
+                form = await self.db.get_form(form_name)
+                if not form:
+                    await update.message.reply_text(
+                        f"⛔️ '{form_name}' adında bir form bulunamadı!\n\n"
+                        "📋 Mevcut formları görmek için /formlar komutunu kullanın."
+                    )
+                    return
+                
+                # Form varsa ama veri yoksa
+                if start_date and end_date:
+                    await update.message.reply_text(
+                        f"⛔️ Belirtilen tarih aralığında veri bulunamadı!\n\n"
+                        f"📅 {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')} "
+                        f"tarihleri arasında '{form_name}' formuna ait veri girişi yapılmamış."
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"⛔️ Bugün için veri bulunamadı!\n\n"
+                        f"📅 '{form_name}' formuna bugün hiç veri girişi yapılmamış.\n\n"
+                        "💡 Belirli bir tarih aralığı için rapor almak isterseniz:\n"
+                        "/rapor form_adi GG.AA.YYYY GG.AA.YYYY\n\n"
+                        "Örnek:\n"
+                        "/rapor papel 01.03.2025 18.03.2025"
+                    )
             
         except Exception as e:
             logger.error(f"Rapor oluşturma hatası: {str(e)}")
