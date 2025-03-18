@@ -203,7 +203,7 @@ class DatabaseManager:
             logger.error(f"Grup getirme hatası: {str(e)}")
             return None
 
-    async def add_admin(self, user_id: int, admin_name: str = None, added_by: int = None) -> bool:
+    async def add_admin(self, user_id: str, admin_name: str = None, added_by: str = None) -> bool:
         """Admin ekle"""
         try:
             with self.engine.connect() as conn:

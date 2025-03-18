@@ -575,16 +575,8 @@ class UserHandlers:
                 )
                 return WAITING_AMOUNT
             
-            # Kullanıcı admin değilse, admin yapmaya çalış
-            user_was_admin = await self.db.is_admin(str(user.id))
-            if not user_was_admin:
-                # Kullanıcı admin değilse, grup admin olarak ekle
-                is_success = await self.db.add_admin(str(user.id), user.username or "Anonim", "Ödeme Yapan Kullanıcı")
-                if not is_success:
-                    await update.message.reply_text(
-                        "⛔️ Hesabınız oluşturulurken bir hata oluştu. Lütfen daha sonra tekrar deneyin."
-                    )
-                    return ConversationHandler.END
+            # NOT: Admin ekleme işlemi ödeme başarılı olduktan sonra yapılacak
+            # Kullanıcıya ödeme adresini gösterme aşamasına geç
             
             # İşlem başlatıldığını bildir
             await update.message.reply_text(
@@ -614,15 +606,6 @@ class UserHandlers:
                     f"• Farklı ağlar kullanıldığında ödeme kaybı yaşanabilir.",
                     parse_mode="Markdown"
                 )
-                
-                # Kullanıcı daha önce admin değilse, yetkili olarak eklendiğini bildir
-                if not user_was_admin:
-                    await update.message.reply_text(
-                        "🎉 Tebrikler! Artık OttoExcel Bot'unun yetkili kullanıcısısınız!\n\n"
-                        "✅ Ödemeniz onaylandığında bakiyeniz otomatik olarak yüklenecek ve bot'un tüm özelliklerini kullanabileceksiniz.\n\n"
-                        "📋 Kullanılabilir tüm komutları görmek için ödemeniz onaylandıktan sonra /yardim komutunu kullanabilirsiniz.\n\n"
-                        "🤖 Bot'u tam potansiyeliyle kullanmak için grup oluşturmanız ve formlarınızı yapılandırmanız gerekecek. Ödemeniz onaylandığında detaylı talimatları /yardim komutunda bulabilirsiniz."
-                    )
                 
                 # Ödeme bilgilerini kullanıcı verilerine kaydet
                 context.user_data["payment_info"] = {
@@ -697,24 +680,13 @@ class UserHandlers:
             
             if admin_id:
                 try:
-                    # Veritabanından admin adını al
-                    with self.db.engine.connect() as conn:
-                        result = conn.execute(text("""
-                            SELECT admin_name FROM group_admins 
-                            WHERE user_id = :user_id
-                        """), {"user_id": admin_id})
-                        admin_data = result.fetchone()
-                        if admin_data and admin_data[0]:
-                            admin_name = admin_data[0]
+                    # Önce kullanıcının admin olup olmadığını kontrol et
+                    user_is_admin = await self.db.is_admin(str(admin_id))
                     
-                    # Telegram API'den kullanıcı adını almaya çalış
+                    # Telegram API'den kullanıcı bilgilerini al
                     try:
                         from telegram import Bot
-                        
-                        # Bot oluştur
                         bot = Bot(token=TOKEN)
-                        
-                        # Kullanıcı bilgilerini al
                         user = await bot.get_chat(admin_id)
                         
                         # Kullanıcı adını al (varsa)
@@ -725,10 +697,29 @@ class UserHandlers:
                             admin_username = user.first_name
                             if user.last_name:
                                 admin_username += f" {user.last_name}"
-                        
+                                
+                        # Kullanıcı admin değilse, ve ödeme başarılıysa admin yap
+                        if not user_is_admin and (payment_status == "confirmed" or payment_status == "finished"):
+                            # Kullanıcıyı admin olarak ekle (parametrelerin doğru sırasına dikkat et)
+                            is_success = await self.db.add_admin(admin_id, admin_username, admin_id)
+                            if not is_success:
+                                logger.error(f"Admin ekleme hatası: Admin ID: {admin_id}")
+                            else:
+                                logger.info(f"Kullanıcı başarıyla admin yapıldı: {admin_id} ({admin_username})")
+                                
                         logger.info(f"Admin kullanıcı adı Telegram API'den alındı: {admin_username}")
                     except Exception as e:
                         logger.error(f"Telegram API'den kullanıcı adı alma hatası: {str(e)}")
+                    
+                    # Veritabanından admin adını al
+                    with self.db.engine.connect() as conn:
+                        result = conn.execute(text("""
+                            SELECT admin_name FROM group_admins 
+                            WHERE user_id = :user_id
+                        """), {"user_id": admin_id})
+                        admin_data = result.fetchone()
+                        if admin_data and admin_data[0]:
+                            admin_name = admin_data[0]
                 except Exception as e:
                     logger.error(f"Admin bilgisi alma hatası: {str(e)}")
             
