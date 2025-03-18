@@ -45,12 +45,16 @@ class FormHandlers:
         """Initialize the FormHandlers class"""
         self.db = DatabaseManager()
         self.engine = self.db.engine
-        # Genel mail formatı için regex pattern
+        # Genel mail formatı için regex pattern - daha sıkı kontrol
         self.mail_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-        # Sadece mail adresi alanları için anahtar kelimeler - hepsi küçük harfli
-        self.mail_keywords = ['mail adresi', 'email adresi', 'e-posta adresi', 'mail', 'email', 
-                             'e-mail', 'e-posta', 'eposta', 'mail adres', 'email adres',
-                             'maıl', 'maıl adresi']
+        # Sadece mail adresi alanları için anahtar kelimeler - türkçe karakter dönüşümleri dahil
+        self.mail_keywords = [
+            'mail', 'email', 'e-mail', 'e-posta', 'eposta', 
+            'maıl', 'emaıl', 'e-maıl', 'maıl adres', 'email adres',
+            'mail adresi', 'email adresi', 'e-posta adresi',
+            'mail adres', 'email adres', 'e-mail adres',
+            'elektronik posta', 'elektronık posta'
+        ]
 
     @authorized_group_required
     @admin_required
@@ -209,20 +213,57 @@ class FormHandlers:
 
     async def validate_mail(self, field: str, value: str) -> tuple[bool, str]:
         """Mail adresini doğrula"""
-        # Sadece mail adresi alanlarını kontrol et
-        field_lower = field.lower().replace('i', 'ı').replace('İ', 'ı')  # Türkçe karakter dönüşümü
+        # Alan adını küçük harfe çevir ve Türkçe karakterleri normalize et
+        field_normalized = field.lower()
         
-        if not any(keyword in field_lower for keyword in self.mail_keywords):
+        # Debug log ekle
+        logger.info(f"Mail kontrol - Alan: '{field}', Değer: '{value}'")
+        
+        # "mail" veya benzeri kelimeler alan adında geçiyor mu kontrol et
+        is_mail_field = False
+        for keyword in self.mail_keywords:
+            # Türkçe karakterleri normalize ederek karşılaştır
+            field_test = field_normalized
+            if keyword in field_test:
+                is_mail_field = True
+                logger.info(f"Mail alanı tespit edildi: '{field}', Eşleşen: '{keyword}'")
+                break
+        
+        # Son kontrol: "MAİL", "MAIL", "Mail" gibi kelimeleri direkt kontrolü
+        if not is_mail_field and ("mail" in field_normalized or "maıl" in field_normalized):
+            is_mail_field = True
+            logger.info(f"Direkt mail kelimesi tespit edildi: '{field}'")
+            
+        if not is_mail_field:
             return True, ""
         
-        # Mail formatını kontrol et
-        if not self.mail_pattern.match(value):
+        # Mail formatını kontrol et - @ işareti ve domain kontrolü
+        if not '@' in value or not '.' in value.split('@')[-1]:
+            logger.info(f"Geçersiz mail formatı: '{value}' - @ veya domain eksik")
             return False, (
                 f"⛔️ '{field}' için geçerli bir mail adresi girin!\n\n"
+                "📧 Örnek: kullanici@gmail.com\n\n"
                 "📧 Örnek Mail Sağlayıcıları:\n"
                 "• outlook.com\n"
                 "• gmail.com\n"
                 "• hotmail.com\n"
+                "• yahoo.com\n"
+                "• yandex.com\n"
+                "✉️ Format: kullanici@servis.uzanti\n"
+                "❗️ Mail adresi '@' ve domain içermelidir."
+            )
+            
+        # Düzgün formatta bir mail mi detaylı kontrol
+        if not self.mail_pattern.match(value):
+            logger.info(f"Regex kontrolünde geçersiz mail formatı: '{value}'")
+            return False, (
+                f"⛔️ '{field}' için geçerli bir mail adresi girin!\n\n"
+                "📧 Örnek: kullanici@gmail.com\n\n"
+                "📧 Örnek Mail Sağlayıcıları:\n"
+                "• outlook.com\n"
+                "• gmail.com\n"
+                "• hotmail.com\n"
+                "• yahoo.com\n"
                 "• yandex.com\n"
                 "✉️ Format: kullanici@servis.uzanti\n"
                 "❗️ Mail adresi '@' ve domain içermelidir."
