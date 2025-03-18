@@ -83,35 +83,41 @@ class UserHandlers:
             # Yetkili kullanıcılar için komut listesi
             help_text = """ Kullanılabilir Komutlar:
 
-🔹 /formekle - Yeni form oluştur
-🔹 /formlar - Mevcut formları listele
-🔹 /form - Form verisi gir
-🔹 /rapor - Form verilerini Excel olarak al
-🔹 /bakiye - Mevcut bakiyeyi gösterir
-🔹 /bakiyeyukle - Bakiye yükleme işlemi başlatır
-🔹 /chatid - Sohbet ID'sini gösterir
-🔹 /gruplar - Grupları listeler
-🔹 /grupekle - Yeni grup ekler
-🔹 /grupsil - Grup siler"""
+📋 Form İşlemleri:
+📝 /formekle - Yeni form oluştur
+📊 /formlar - Mevcut formları listele
+📄 /form - Form verisi gir
+📈 /rapor - Form verilerini Excel olarak al
+
+💰 Bakiye İşlemleri:
+💵 /bakiye - Mevcut bakiyeyi gösterir
+💳 /bakiyeyukle - Bakiye yükleme işlemi başlatır
+
+🏢 Grup İşlemleri:
+🔍 /chatid - Sohbet ID'sini gösterir
+📂 /gruplar - Grupları listeler
+➕ /grupekle - Yeni grup ekler
+➖ /grupsil - Grup siler"""
 
             # Süper admin için ek komutları göster
             if is_super_admin:
                 help_text += """
 
 👑 Süper Admin Komutları:
-⭐️ /adminekle - Yeni admin ekler
-⭐️ /adminsil - Admin yetkisi kaldırır
-⭐️ /adminler - Tüm adminleri listeler
-⭐️ /bakiyeekle - Admine bakiye ekler
-⭐️ /bakiyesil - Adminden bakiye siler"""
+👤 /adminekle - Yeni admin ekler
+🚫 /adminsil - Admin yetkisi kaldırır
+📋 /adminler - Tüm adminleri listeler
+➕ /bakiyeekle - Admine bakiye ekler
+➖ /bakiyesil - Adminden bakiye siler"""
 
             help_text += "\n\n❓ Komutlara tıkladığızda bot detaylı kullanım bilgisi verecektir."
+            help_text += "\n\n⚠️ Önemli: Bot'u gruplara eklerken, tüm komutların düzgün çalışabilmesi için bota yönetici yetkisi verilmelidir."
 
             await update.message.reply_text(help_text)
             
         except Exception as e:
             logger.error(f"Yardım komutu hatası: {str(e)}")
-            await update.message.reply_text("⛔️ Bir hata oluştu!")
+            await update.message.reply_text("⛔️ Yardım gösterilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.")
 
     @authorized_group_required
     @admin_required
