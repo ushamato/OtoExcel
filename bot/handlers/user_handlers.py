@@ -176,7 +176,11 @@ class UserHandlers:
                     "📝 Doğru Kullanım:\n"
                     "/rapor form_adi\n\n"
                     "Örnek:\n"
-                    "/rapor yahoo"
+                    "/rapor yahoo\n\n"
+                    "📅 Belirli bir tarih aralığı için rapor almak isterseniz:\n"
+                    "/rapor form_adi GG.AA.YYYY GG.AA.YYYY\n\n"
+                    "Örnek:\n"
+                    "/rapor yahoo 01.03.2025 10.03.2025"
                 )
                 return
             
@@ -184,19 +188,53 @@ class UserHandlers:
             user_id = update.effective_user.id
             is_super_admin = user_id == SUPER_ADMIN_ID
             
+            # Tarih parametrelerini kontrol et
+            start_date = None
+            end_date = None
+            
+            if len(args) >= 3:
+                try:
+                    # GG.AA.YYYY formatını datetime objesine çevir
+                    start_date = datetime.strptime(args[1], "%d.%m.%Y")
+                    end_date = datetime.strptime(args[2], "%d.%m.%Y")
+                    
+                    # Bitiş tarihi için saat 23:59:59'a ayarla
+                    end_date = end_date.replace(hour=23, minute=59, second=59)
+                    
+                    logger.info(f"Tarih aralığı belirlendi: {start_date} - {end_date}")
+                except ValueError:
+                    await update.message.reply_text(
+                        "⛔️ Geçersiz tarih formatı!\n\n"
+                        "📅 Tarih formatı GG.AA.YYYY şeklinde olmalıdır.\n"
+                        "Örnek: 01.03.2025"
+                    )
+                    return
+            
             # Rapor oluştur
             excel_file = await self.db.generate_report(
                 form_name=form_name,
                 admin_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
                 is_super_admin=is_super_admin
             )
             
             if excel_file:
+                # Tarih bilgisi varsa dosya adına ekle
+                filename = f"{form_name}_rapor"
+                if start_date and end_date:
+                    filename += f"_{start_date.strftime('%d%m%Y')}-{end_date.strftime('%d%m%Y')}"
+                filename += ".xlsx"
+                
                 # Excel dosyasını gönder
+                caption = f"📊 {form_name.capitalize()} Raporu"
+                if start_date and end_date:
+                    caption += f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})"
+                
                 await update.message.reply_document(
                     document=excel_file,
-                    filename=f"{form_name}_rapor.xlsx",
-                    caption=f"📊 {form_name.capitalize()} Raporu"
+                    filename=filename,
+                    caption=caption
                 )
             else:
                 await update.message.reply_text(
