@@ -213,62 +213,22 @@ class FormHandlers:
 
     async def validate_mail(self, field: str, value: str) -> tuple[bool, str]:
         """Mail adresini doğrula"""
-        # Alan adını küçük harfe çevir ve Türkçe karakterleri normalize et
-        field_normalized = field.lower()
+        # Alan adını temizle ve küçük harfe çevir
+        field_lower = field.lower()
         
-        # Debug log ekle
-        logger.info(f"Mail kontrol - Alan: '{field}', Değer: '{value}'")
-        
-        # "mail" veya benzeri kelimeler alan adında geçiyor mu kontrol et
-        is_mail_field = False
-        for keyword in self.mail_keywords:
-            # Türkçe karakterleri normalize ederek karşılaştır
-            field_test = field_normalized
-            if keyword in field_test:
-                is_mail_field = True
-                logger.info(f"Mail alanı tespit edildi: '{field}', Eşleşen: '{keyword}'")
-                break
-        
-        # Son kontrol: "MAİL", "MAIL", "Mail" gibi kelimeleri direkt kontrolü
-        if not is_mail_field and ("mail" in field_normalized or "maıl" in field_normalized):
-            is_mail_field = True
-            logger.info(f"Direkt mail kelimesi tespit edildi: '{field}'")
+        # Sadece MAİL kelimesi geçiyorsa mail alanıdır (çok basit ve doğrudan kontrol)
+        if 'mail' in field_lower or 'maıl' in field_lower or 'e-mail' in field_lower or 'email' in field_lower or 'e-posta' in field_lower:
+            logger.info(f"Mail alanı tespit edildi: '{field}'")
             
-        if not is_mail_field:
-            return True, ""
-        
-        # Mail formatını kontrol et - @ işareti ve domain kontrolü
-        if not '@' in value or not '.' in value.split('@')[-1]:
-            logger.info(f"Geçersiz mail formatı: '{value}' - @ veya domain eksik")
-            return False, (
-                f"⛔️ '{field}' için geçerli bir mail adresi girin!\n\n"
-                "📧 Örnek: kullanici@gmail.com\n\n"
-                "📧 Örnek Mail Sağlayıcıları:\n"
-                "• outlook.com\n"
-                "• gmail.com\n"
-                "• hotmail.com\n"
-                "• yahoo.com\n"
-                "• yandex.com\n"
-                "✉️ Format: kullanici@servis.uzanti\n"
-                "❗️ Mail adresi '@' ve domain içermelidir."
-            )
+            # Mail formatını kontrol et - @ işareti ve domain kontrolü (çok basit kontrol)
+            if not '@' in value or not '.' in value.split('@')[-1]:
+                logger.info(f"Geçersiz mail formatı: '{value}' - @ veya domain eksik")
+                return False, (
+                    f"⛔️ '{field}' için geçerli bir mail adresi girin!\n\n"
+                    "📧 Örnek: kullanici@gmail.com\n\n"
+                    "✉️ Mail adresi '@' işareti ve '.com', '.net' gibi bir uzantı içermelidir."
+                )
             
-        # Düzgün formatta bir mail mi detaylı kontrol
-        if not self.mail_pattern.match(value):
-            logger.info(f"Regex kontrolünde geçersiz mail formatı: '{value}'")
-            return False, (
-                f"⛔️ '{field}' için geçerli bir mail adresi girin!\n\n"
-                "📧 Örnek: kullanici@gmail.com\n\n"
-                "📧 Örnek Mail Sağlayıcıları:\n"
-                "• outlook.com\n"
-                "• gmail.com\n"
-                "• hotmail.com\n"
-                "• yahoo.com\n"
-                "• yandex.com\n"
-                "✉️ Format: kullanici@servis.uzanti\n"
-                "❗️ Mail adresi '@' ve domain içermelidir."
-            )
-        
         return True, ""
 
     @authorized_group_required
@@ -334,13 +294,27 @@ class FormHandlers:
                     return
 
                 # Her bir alanı kontrol et
+                mail_value = None
+                mail_field = None
+                
                 for i, field in enumerate(form['fields']):
                     value = data_lines[i].strip()
+                    field_lower = field.lower()
                     
-                    # Mail kontrolü
-                    is_valid, error_msg = await self.validate_mail(field, value)
-                    if not is_valid:
-                        await update.message.reply_text(error_msg)
+                    # Mail alanı olup olmadığını kontrol et
+                    if 'mail' in field_lower or 'maıl' in field_lower or 'e-mail' in field_lower or 'email' in field_lower:
+                        mail_value = value
+                        mail_field = field
+                
+                # Mail alanı varsa ve değer geçerli mail değilse uyarı ver
+                if mail_value and mail_field:
+                    # Mail formatını kontrol et (basit kontrol)
+                    if not '@' in mail_value or not '.' in mail_value.split('@')[-1]:
+                        await update.message.reply_text(
+                            f"⛔️ '{mail_field}' için geçerli bir mail adresi girin!\n\n"
+                            "📧 Örnek: kullanici@gmail.com\n\n"
+                            "✉️ Mail adresi '@' işareti ve '.com', '.net' gibi bir uzantı içermelidir."
+                        )
                         return
 
                 # Verileri kaydet
