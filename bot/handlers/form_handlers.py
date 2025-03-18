@@ -293,37 +293,6 @@ class FormHandlers:
                         )
                     return
 
-                # Her bir alanı kontrol et
-                mail_value = None
-                mail_field = None
-                
-                for i, field in enumerate(form['fields']):
-                    value = data_lines[i].strip()
-                    
-                    # Türkçe karakterleri normalize et ve küçük harfe çevir
-                    field_normalized = field.lower().replace('İ', 'i').replace('I', 'ı')
-                    
-                    # Mail alanını algılama - büyük/küçük harf ve Türkçe karakterlerden bağımsız
-                    if any(keyword in field_normalized for keyword in ['mail', 'email', 'e-mail', 'eposta', 'e-posta']) or \
-                       'mail' in field.lower() or 'maıl' in field.lower() or \
-                       'MAIL' in field or 'MAİL' in field or 'EMAIL' in field or 'EMAİL' in field or \
-                       'EPOSTA' in field or 'E-POSTA' in field:
-                        logger.info(f"Mail alanı tespit edildi: '{field}'")
-                        mail_value = value
-                        mail_field = field
-                
-                # Mail alanı varsa ve değer geçerli mail değilse uyarı ver
-                if mail_value:
-                    # Mail formatını kontrol et (basit kontrol)
-                    if not '@' in mail_value or not '.' in mail_value.split('@')[-1]:
-                        logger.info(f"Geçersiz mail formatı: '{mail_value}' - Alan: '{mail_field}'")
-                        await update.message.reply_text(
-                            f"⛔️ '{mail_field}' için geçerli bir mail adresi girin!\n\n"
-                            "📧 Örnek: kullanici@gmail.com\n\n"
-                            "✉️ Mail adresi '@' işareti ve '.com', '.net' gibi bir uzantı içermelidir."
-                        )
-                        return
-
                 # Verileri kaydet
                 form_data = "\n".join(data_lines)
                 
