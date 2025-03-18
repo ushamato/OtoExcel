@@ -293,6 +293,7 @@ class FormHandlers:
                         )
                     return
 
+                
                 # Verileri kaydet
                 form_data = "\n".join(data_lines)
                 
