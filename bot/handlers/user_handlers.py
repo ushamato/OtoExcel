@@ -136,7 +136,6 @@ class UserHandlers:
             await update.message.reply_text("⛔️ Bir hata oluştu!")
 
     @authorized_group_required
-    @admin_required
     async def list_forms(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Formları listele"""
         try:

@@ -232,7 +232,6 @@ class FormHandlers:
         return True, ""
 
     @authorized_group_required
-    @admin_required
     async def handle_form_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Form komutunu işle"""
         try:
