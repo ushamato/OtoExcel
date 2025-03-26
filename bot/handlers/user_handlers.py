@@ -139,11 +139,12 @@ class UserHandlers:
     async def list_forms(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Formları listele"""
         try:
+            chat = update.effective_chat
             user = update.effective_user
             is_super_admin = user.id == SUPER_ADMIN_ID
             
-            # Formları getir
-            forms = await self.db.get_forms(None if is_super_admin else user.id)
+            # Formları getir - adminin tüm gruplarındaki formları getir
+            forms = await self.db.get_forms_by_group(chat.id, user.id)
             
             if forms and len(forms) > 0:
                 message = "📋 Mevcut Formlar:\n\n"
@@ -152,10 +153,7 @@ class UserHandlers:
                     fields = form['fields'].split(',')
                     message += "🔹 Alanlar: " + ", ".join(fields) + "\n\n"
             else:
-                if is_super_admin:
-                    message = "⛔️ Henüz hiç form oluşturulmamış."
-                else:
-                    message = "⛔️ Size ait hiç form bulunmamaktadır."
+                message = "⛔️ Henüz hiç form bulunmamaktadır."
             
             await update.message.reply_text(message)
             

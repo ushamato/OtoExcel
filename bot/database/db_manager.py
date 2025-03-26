@@ -1,7 +1,7 @@
 import io
 import logging
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from config import logger, SUPER_ADMIN_ID
 from datetime import datetime
 from sqlalchemy import create_engine, text
@@ -971,4 +971,43 @@ class DatabaseManager:
                 return None
         except Exception as e:
             logger.error(f"DB ID ile grup getirme hatası: {str(e)}")
-            return None 
+            return None
+
+    async def get_forms_by_group(self, group_id: int, user_id: int = None) -> List[Dict]:
+        """Belirli bir gruptaki tüm formları getir"""
+        try:
+            with self.engine.connect() as conn:
+                # Eğer user_id verilmişse ve admin ise, adminin tüm gruplarındaki formları getir
+                if user_id and await self.is_admin(user_id):
+                    query = text("""
+                        SELECT DISTINCT f.form_name, f.fields, f.created_by, f.group_id 
+                        FROM forms f
+                        INNER JOIN admin_groups ag ON f.group_id = ag.group_id
+                        WHERE ag.admin_id = :user_id
+                        ORDER BY f.form_name
+                    """)
+                    result = conn.execute(query, {"user_id": user_id})
+                else:
+                    # Normal kullanıcılar için sadece kendi adminlerinin formlarını getir
+                    query = text("""
+                        SELECT DISTINCT f.form_name, f.fields, f.created_by, f.group_id 
+                        FROM forms f
+                        INNER JOIN admin_groups ag ON f.group_id = ag.group_id
+                        WHERE ag.group_id = :group_id
+                        ORDER BY f.form_name
+                    """)
+                    result = conn.execute(query, {"group_id": group_id})
+                
+                forms = result.fetchall()
+                return [
+                    {
+                        "form_name": form[0],
+                        "fields": form[1],
+                        "created_by": form[2],
+                        "group_id": form[3]
+                    }
+                    for form in forms
+                ]
+        except Exception as e:
+            logger.error(f"Formları getirme hatası: {str(e)}")
+            return [] 
