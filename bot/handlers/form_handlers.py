@@ -101,7 +101,8 @@ class FormHandlers:
                 "Ad Soyad\n"
                 "Telefon\n"
                 "Email\n"
-                "Dekont"
+                "Dekont\n\n"
+                "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
             )
             return WAITING_FORM_FIELDS
 
@@ -117,6 +118,11 @@ class FormHandlers:
         try:
             # Alanları satır satır ayır
             fields_text = update.message.text.strip()
+            
+            # İptal kontrolü
+            if fields_text.lower() == "iptal":
+                return await self.cancel(update, context)
+            
             fields = [field.strip() for field in fields_text.split('\n') if field.strip()]
             
             if not fields:
@@ -167,6 +173,9 @@ class FormHandlers:
         try:
             user_response = update.message.text.strip().lower()
             
+            if user_response == "iptal":
+                return await self.cancel(update, context)
+                
             if user_response == "evet":
                 # Form bilgilerini al
                 form_name = context.user_data.get('form_name')
@@ -222,6 +231,10 @@ class FormHandlers:
     async def handle_form_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Form komutunu işle"""
         try:
+            # İptal kontrolü
+            if update.message.text and update.message.text.strip().lower() == "iptal":
+                return await self.cancel(update, context)
+                
             args = context.args
             if not args:
                 await update.message.reply_text(
@@ -249,7 +262,7 @@ class FormHandlers:
                 return
 
             # Form alanlarını kontrol et, son alanda "dekont" var mı?
-            fields = form['fields'].split(',')
+            fields = form['fields']
             has_dekont = False
             if fields and len(fields) > 0:
                 last_field = fields[-1].lower()
@@ -298,7 +311,7 @@ class FormHandlers:
                     await update.message.reply_text(
                         "📸 Lütfen dekont görselini gönderin...\n\n"
                         "💳 Görsel JPEG, PNG veya PDF formatında olabilir.\n\n"
-                        "❓ İptal etmek için /iptal yazabilirsiniz."
+                        "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
                     )
                     
                     return WAITING_DEKONT
@@ -420,7 +433,7 @@ class FormHandlers:
                 f"{field_list}\n\n"
                 "❗️ ÖNEMLİ NOT: Bilgileri gönderirken sadece bilgileri sırasıyla yazmanız yeterlidir.\n"
                 "Başına numara (1., 2., 3.) eklemeyin." + dekont_info + "\n\n"
-                "❓ İptal etmek için /iptal yazabilirsiniz."
+                "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
             )
             
             # Form bilgilerini context'e kaydet
@@ -655,9 +668,8 @@ class FormHandlers:
         """Dekont görüntüsünü işle"""
         try:
             # Kullanıcı iptal ettiyse
-            if update.message.text and update.message.text.lower() == '/iptal':
-                await self.cancel(update, context)
-                return ConversationHandler.END
+            if update.message.text and update.message.text.lower() == 'iptal':
+                return await self.cancel(update, context)
             
             # Fotoğraf veya doküman kontrolü
             photo = None
@@ -672,7 +684,7 @@ class FormHandlers:
                 else:
                     await update.message.reply_text(
                         "⛔️ Lütfen geçerli bir görsel formatı gönderin (JPEG, PNG, PDF).\n\n"
-                        "❓ İptal etmek için /iptal yazabilirsiniz."
+                        "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
                     )
                     return WAITING_DEKONT
             
@@ -680,7 +692,7 @@ class FormHandlers:
                 await update.message.reply_text(
                     "⛔️ Lütfen bir görsel gönderin.\n\n"
                     "💳 Dekont görüntüsü JPEG, PNG veya PDF formatında olmalıdır.\n\n"
-                    "❓ İptal etmek için /iptal yazabilirsiniz."
+                    "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
                 )
                 return WAITING_DEKONT
             
@@ -697,7 +709,7 @@ class FormHandlers:
             if not image_url:
                 await update.message.reply_text(
                     "⛔️ Dekont görüntüsü yüklenirken bir hata oluştu. Lütfen tekrar deneyin.\n\n"
-                    "❓ İptal etmek için /iptal yazabilirsiniz."
+                    "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
                 )
                 return WAITING_DEKONT
             
