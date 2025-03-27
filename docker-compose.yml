@@ -18,6 +18,8 @@ services:
   ottoexcel_bot:
     image: ${DOCKER_IMAGE:-ghcr.io/liraa97/ottoexcel:latest}
     container_name: ottoexcel_bot
+    env_file:
+      - .env
     environment:
       - BOT_TOKEN=${BOT_TOKEN}
       - SUPER_ADMIN_ID=${SUPER_ADMIN_ID}
