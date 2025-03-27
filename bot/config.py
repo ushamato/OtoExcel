@@ -12,8 +12,8 @@ NOWPAYMENTS_API_KEY = os.getenv('NOWPAYMENTS_API_KEY')  # NowPayments API anahta
 NOTIFICATION_BOT_TOKEN = os.getenv('NOTIFICATION_BOT_TOKEN')  # Bildirim botu token'ı
 
 # ImgBB API için gerekli ayarlar
-IMGBB_API_KEY = os.environ.get('IMGBB_API_KEY', '')
-IMGBB_UPLOAD_URL = os.environ.get('IMGBB_UPLOAD_URL', 'https://api.imgbb.com/1/upload')
+IMGBB_API_KEY = os.environ.get('IMG_API_KEY', '')
+IMGBB_UPLOAD_URL = os.environ.get('IMGBB_UPLOAD_URL')
 
 # Logger ayarları
 logging.basicConfig(
