@@ -18,6 +18,12 @@ IMGBB_UPLOAD_URL = os.getenv('IMGBB_UPLOAD_URL')
 # Debugging için çevre değişkenlerini logla
 print(f"DEBUG - ImgBB API Anahtarı mevcut mu: {'Evet' if IMGBB_API_KEY else 'Hayır'}")
 print(f"DEBUG - ImgBB URL mevcut mu: {'Evet' if IMGBB_UPLOAD_URL else 'Hayır'}")
+print(f"DEBUG - os.getenv('IMGBB_API_KEY'): {os.getenv('IMGBB_API_KEY')}")
+print(f"DEBUG - os.getenv('IMGBB_UPLOAD_URL'): {os.getenv('IMGBB_UPLOAD_URL')}")
+print(f"DEBUG - os.environ.get('IMGBB_API_KEY'): {os.environ.get('IMGBB_API_KEY')}")
+print(f"DEBUG - os.environ.get('IMGBB_UPLOAD_URL'): {os.environ.get('IMGBB_UPLOAD_URL')}")
+print(f"DEBUG - 'IMGBB_API_KEY' in os.environ: {'IMGBB_API_KEY' in os.environ}")
+print(f"DEBUG - 'IMGBB_UPLOAD_URL' in os.environ: {'IMGBB_UPLOAD_URL' in os.environ}")
 
 # os.environ içindeki değerleri logla
 print("DEBUG - Environment variables:")
