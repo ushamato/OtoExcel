@@ -4,7 +4,6 @@ from bot.config import logger, SUPER_ADMIN_ID
 from bot.database.db_manager import DatabaseManager
 from bot.utils.decorators import super_admin_required, admin_required
 from functools import wraps
-import re
 from sqlalchemy import text
 from datetime import datetime
 
@@ -15,14 +14,23 @@ def authorized_group_required(func):
         chat = update.effective_chat
         user = update.effective_user
         
-        # Özel mesajlarda çalışmasına izin ver (admin komutları için)
-        if chat.type == 'private':
-            return await func(self, update, context, *args, **kwargs)
-        
         # Süper admin her yerde çalıştırabilir
         if user.id == SUPER_ADMIN_ID:
             return await func(self, update, context, *args, **kwargs)
-            
+        
+        # Admin mi kontrol et
+        is_admin = await self.db.is_admin(user.id)
+        if is_admin:
+            return await func(self, update, context, *args, **kwargs)
+        
+        # Özel mesajlarda sadece adminler kullanabilir - yukarıda kontrol edildi
+        if chat.type == 'private':
+            await update.message.reply_text(
+                "⛔️ Bu komut özel mesajlarda sadece adminler tarafından kullanılabilir!\n\n"
+                "ℹ️ Yetkili gruplarda bu komutu kullanabilirsiniz."
+            )
+            return
+        
         # Grup yetkili mi kontrol et
         is_authorized = await self.db.is_authorized_group(chat.id)
         if not is_authorized:
@@ -32,6 +40,7 @@ def authorized_group_required(func):
             )
             return
         
+        # Yetkili grupta herkes kullanabilir
         return await func(self, update, context, *args, **kwargs)
     return wrapper
 
@@ -46,16 +55,6 @@ class FormHandlers:
         """Initialize the FormHandlers class"""
         self.db = DatabaseManager()
         self.engine = self.db.engine
-        # Genel mail formatı için regex pattern - daha sıkı kontrol
-        self.mail_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-        # Sadece mail adresi alanları için anahtar kelimeler - türkçe karakter dönüşümleri dahil
-        self.mail_keywords = [
-            'mail', 'email', 'e-mail', 'e-posta', 'eposta', 
-            'maıl', 'emaıl', 'e-maıl', 'maıl adres', 'email adres',
-            'mail adresi', 'email adresi', 'e-posta adresi',
-            'mail adres', 'email adres', 'e-mail adres',
-            'elektronik posta', 'elektronık posta'
-        ]
 
     @authorized_group_required
     @admin_required
@@ -211,26 +210,6 @@ class FormHandlers:
             "Mevcut formları görmek için /formlar komutunu kullanabilirsiniz."
         )
         return ConversationHandler.END
-
-    async def validate_mail(self, field: str, value: str) -> tuple[bool, str]:
-        """Mail adresini doğrula"""
-        # Alan adını temizle ve küçük harfe çevir
-        field_lower = field.lower()
-        
-        # Sadece MAİL kelimesi geçiyorsa mail alanıdır (çok basit ve doğrudan kontrol)
-        if 'mail' in field_lower or 'maıl' in field_lower or 'e-mail' in field_lower or 'email' in field_lower or 'e-posta' in field_lower:
-            logger.info(f"Mail alanı tespit edildi: '{field}'")
-            
-            # Mail formatını kontrol et - @ işareti ve domain kontrolü (çok basit kontrol)
-            if not '@' in value or not '.' in value.split('@')[-1]:
-                logger.info(f"Geçersiz mail formatı: '{value}' - @ veya domain eksik")
-                return False, (
-                    f"⛔️ '{field}' için geçerli bir mail adresi girin!\n\n"
-                    "📧 Örnek: kullanici@gmail.com\n\n"
-                    "✉️ Mail adresi '@' işareti ve '.com', '.net' gibi bir uzantı içermelidir."
-                )
-            
-        return True, ""
 
     @authorized_group_required
     async def handle_form_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -587,4 +566,4 @@ class FormHandlers:
             
         except Exception as e:
             logger.error(f"Rapor oluşturma hatası: {str(e)}")
-            await update.message.reply_text("⛔️ Bir hata oluştu!") 
+            await update.message.reply_text("⛔️ Bir hata oluştu!")
