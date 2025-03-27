@@ -7,9 +7,9 @@ import traceback
 from datetime import datetime
 from telegram.ext import Application, PicklePersistence
 from telegram import Update
-from bot.config import TOKEN, logger, IMGBB_API_KEY, IMGBB_UPLOAD_URL
-from bot.handlers import setup_handlers
-from bot.database.db_manager import DatabaseManager
+from config import TOKEN, logger
+from handlers import setup_handlers
+from database.db_manager import DatabaseManager
 from dotenv import load_dotenv
 
 # .env dosyasını yükle

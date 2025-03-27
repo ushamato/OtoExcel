@@ -18,12 +18,19 @@ services:
   ottoexcel_bot:
     image: ${DOCKER_IMAGE:-ghcr.io/liraa97/ottoexcel:latest}
     container_name: ottoexcel_bot
-    env_file:
-      - .env
-    restart: always
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - SUPER_ADMIN_ID=${SUPER_ADMIN_ID}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@ottoexcel_db:5432/${POSTGRES_DB}
+      - POSTGRES_ENCRYPTION_KEY=${POSTGRES_ENCRYPTION_KEY}
+      - NOWPAYMENTS_API_KEY=${NOWPAYMENTS_API_KEY}
+      - NOTIFICATION_BOT_TOKEN=${NOTIFICATION_BOT_TOKEN}
+      - IMGBB_API_KEY=${IMGBB_API_KEY}
+      - IMGBB_UPLOAD_URL=${IMGBB_UPLOAD_URL}
     depends_on:
       ottoexcel_db:
         condition: service_healthy
+    restart: always
 
 volumes:
   postgres_data: 
