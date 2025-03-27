@@ -87,6 +87,7 @@ class UserHandlers:
 📝 /formekle - Yeni form oluştur
 📊 /formlar - Mevcut formları listele
 📄 /form - Form verisi gir
+❌ /formsil - Form sil
 📈 /rapor - Form verilerini Excel olarak al
 
 💰 Bakiye İşlemleri:
