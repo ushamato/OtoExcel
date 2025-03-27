@@ -425,3 +425,36 @@ class FormHandlers:
         except Exception as e:
             logger.error(f"Bakiye kontrolü hatası: {str(e)}")
             return False 
+
+    @admin_required
+    async def delete_form(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Form sil"""
+        try:
+            if not context.args:
+                await update.message.reply_text(
+                    "⛔️ Form adı belirtmelisiniz!\n\n"
+                    "Örnek:\n"
+                    "/formsil yahoo"
+                )
+                return
+            
+            form_name = context.args[0]
+            chat = update.effective_chat
+            
+            # Formu sil
+            success = await self.db.delete_form(form_name, chat.id)
+            
+            if success:
+                await update.message.reply_text(f"✅ '{form_name}' formu başarıyla silindi.")
+            else:
+                await update.message.reply_text(
+                    "⛔️ Form silinemedi!\n\n"
+                    "Olası nedenler:\n"
+                    "• Form bulunamadı\n"
+                    "• Form size ait değil\n"
+                    "• Veritabanı hatası"
+                )
+                
+        except Exception as e:
+            logger.error(f"Form silme hatası: {str(e)}")
+            await update.message.reply_text("⛔️ Bir hata oluştu!") 

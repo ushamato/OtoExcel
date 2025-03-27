@@ -68,8 +68,6 @@ def setup_handlers(app: Application):
     # Sonra diğer handler'ları ekle
     app.add_handler(CommandHandler(['start', 'baslat'], user_handlers.start))
     app.add_handler(CommandHandler(['help', 'yardim'], user_handlers.help))
-    app.add_handler(CommandHandler('formlar', user_handlers.list_forms))
-    app.add_handler(CommandHandler('rapor', user_handlers.get_report))
     app.add_handler(CommandHandler('chatid', user_handlers.chatid))
     
     # Bakiye komutları
@@ -85,4 +83,11 @@ def setup_handlers(app: Application):
     
     # Grup yönetim komutları
     app.add_handler(CommandHandler('grupekle', user_handlers.add_group))
-    app.add_handler(CommandHandler('grupsil', user_handlers.remove_group)) 
+    app.add_handler(CommandHandler('grupsil', user_handlers.remove_group))
+
+    # Form komutları
+    app.add_handler(CommandHandler('form', form_handlers.handle_form_command))
+    app.add_handler(CommandHandler('formlar', form_handlers.list_forms))
+    app.add_handler(CommandHandler('formekle', form_handlers.add_application))
+    app.add_handler(CommandHandler('formsil', form_handlers.delete_form))
+    app.add_handler(CommandHandler('rapor', form_handlers.get_report)) 
