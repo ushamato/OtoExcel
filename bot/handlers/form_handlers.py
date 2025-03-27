@@ -1,11 +1,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from bot.config import logger, SUPER_ADMIN_ID
-from bot.utils.decorators import admin_required
 from bot.database.db_manager import DatabaseManager
+from bot.utils.decorators import super_admin_required, admin_required
 from functools import wraps
 import re
 from sqlalchemy import text
+from datetime import datetime
 
 def authorized_group_required(func):
     """Komutun sadece yetkili gruplarda çalışmasını sağlayan dekoratör"""
@@ -457,4 +458,133 @@ class FormHandlers:
                 
         except Exception as e:
             logger.error(f"Form silme hatası: {str(e)}")
+            await update.message.reply_text("⛔️ Bir hata oluştu!") 
+
+    @authorized_group_required
+    async def list_forms(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Formları listele"""
+        try:
+            chat = update.effective_chat
+            user = update.effective_user
+            is_super_admin = user.id == SUPER_ADMIN_ID
+            
+            # Formları getir - adminin tüm gruplarındaki formları getir
+            forms = await self.db.get_forms_by_group(chat.id, user.id)
+            
+            if forms and len(forms) > 0:
+                message = "📋 Mevcut Formlar:\n\n"
+                for form in forms:
+                    message += f"📝 {form['form_name']}\n"
+                    fields = form['fields'].split(',')
+                    message += "🔹 Alanlar: " + ", ".join(fields) + "\n\n"
+            else:
+                message = "⛔️ Henüz hiç form bulunmamaktadır."
+            
+            await update.message.reply_text(message)
+            
+        except Exception as e:
+            logger.error(f"Form listeleme hatası: {str(e)}")
+            await update.message.reply_text("⛔️ Bir hata oluştu!") 
+
+    @authorized_group_required
+    @admin_required
+    async def get_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Rapor oluştur"""
+        try:
+            args = context.args
+            if not args:
+                await update.message.reply_text(
+                    "⛔️ Lütfen form adını belirtin!\n\n"
+                    "📝 Doğru Kullanım:\n"
+                    "/rapor form adı\n\n"
+                    "Örnek:\n"
+                    "/rapor yahoo\n\n"
+                    "📅 Belirli bir tarih aralığı için rapor almak isterseniz:\n"
+                    "/rapor form adı GG.AA.YYYY GG.AA.YYYY\n\n"
+                    "Örnek:\n"
+                    "/rapor yahoo 01.03.2025 10.03.2025"
+                )
+                return
+            
+            form_name = args[0].lower()
+            user_id = update.effective_user.id
+            is_super_admin = user_id == SUPER_ADMIN_ID
+            
+            # Tarih parametrelerini kontrol et
+            start_date = None
+            end_date = None
+            
+            if len(args) >= 3:
+                try:
+                    # GG.AA.YYYY formatını datetime objesine çevir
+                    start_date = datetime.strptime(args[1], "%d.%m.%Y")
+                    end_date = datetime.strptime(args[2], "%d.%m.%Y")
+                    
+                    # Bitiş tarihi için saat 23:59:59'a ayarla
+                    end_date = end_date.replace(hour=23, minute=59, second=59)
+                    
+                    logger.info(f"Tarih aralığı belirlendi: {start_date} - {end_date}")
+                except ValueError:
+                    await update.message.reply_text(
+                        "⛔️ Geçersiz tarih formatı!\n\n"
+                        "📅 Tarih formatı GG.AA.YYYY şeklinde olmalıdır.\n"
+                        "Örnek: 01.03.2025"
+                    )
+                    return
+            
+            # Rapor oluştur
+            excel_file = await self.db.generate_report(
+                form_name=form_name,
+                admin_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                is_super_admin=is_super_admin
+            )
+            
+            if excel_file:
+                # Tarih bilgisi varsa dosya adına ekle
+                filename = f"{form_name}_rapor"
+                if start_date and end_date:
+                    filename += f"_{start_date.strftime('%d%m%Y')}-{end_date.strftime('%d%m%Y')}"
+                filename += ".xlsx"
+                
+                # Excel dosyasını gönder
+                caption = f"📊 {form_name.capitalize()} Raporu"
+                if start_date and end_date:
+                    caption += f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})"
+                
+                await update.message.reply_document(
+                    document=excel_file,
+                    filename=filename,
+                    caption=caption
+                )
+            else:
+                # Form var mı kontrol et
+                form = await self.db.get_form(form_name)
+                if not form:
+                    await update.message.reply_text(
+                        f"⛔️ '{form_name}' adında bir form bulunamadı!\n\n"
+                        "📋 Mevcut formları görmek için /formlar komutunu kullanın."
+                    )
+                    return
+                
+                # Form varsa ama veri yoksa
+                if start_date and end_date:
+                    await update.message.reply_text(
+                        f"⛔️ Belirtilen tarih aralığında veri bulunamadı!\n\n"
+                        f"📅 {start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')} "
+                        f"tarihleri arasında '{form_name}' formuna ait veri girişi yapılmamış."
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"⛔️ Bugün için veri bulunamadı!\n\n"
+                        f"📅 '{form_name}' formuna bugün hiç veri girişi yapılmamış.\n\n"
+                        "💡 Belirli bir tarih aralığı için rapor almak isterseniz:\n"
+                        "/rapor form_adi GG.AA.YYYY GG.AA.YYYY\n\n"
+                        "Örnek:\n"
+                        "/rapor papel 01.03.2025 18.03.2025"
+                    )
+            
+        except Exception as e:
+            logger.error(f"Rapor oluşturma hatası: {str(e)}")
             await update.message.reply_text("⛔️ Bir hata oluştu!") 
