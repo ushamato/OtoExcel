@@ -656,49 +656,58 @@ class FormHandlers:
             # Base64 kodlaması yap
             base64_image = base64.b64encode(photo_data).decode('utf-8')
             
-            # API anahtarını kontrol et
-            if not IMGBB_API_KEY or IMGBB_API_KEY == '':
-                logger.error("ImgBB API anahtarı bulunamadı veya boş!")
+            # API anahtarının tanımlı olup olmadığını kontrol et
+            if not IMGBB_API_KEY:
+                logger.error("ImgBB API anahtarı bulunamadı!")
+                return None
+            
+            if not IMGBB_UPLOAD_URL:
+                logger.error("ImgBB API URL'i bulunamadı!")
                 return None
                 
             logger.info(f"ImgBB yükleme başlatılıyor. Resim boyutu: {len(photo_data)} byte")
             
             # ImgBB API'sine gönder
             async with aiohttp.ClientSession() as session:
-                # API anahtarını URL'e ekle
+                # API anahtarını URL parametresi olarak ekle (dokümantasyonda gösterildiği gibi)
                 api_url = f"{IMGBB_UPLOAD_URL}?key={IMGBB_API_KEY}"
                 
-                # Form verilerini hazırla
+                # Dokümantasyonda belirtildiği gibi form verisini hazırla
                 form_data = aiohttp.FormData()
                 form_data.add_field('image', base64_image)
                 
-                logger.info(f"ImgBB API'sine istek gönderiliyor. URL: {IMGBB_UPLOAD_URL}")
+                logger.info(f"ImgBB API'ye istek gönderiliyor. URL: {api_url[:30]}...")
                 
+                # Dokümantasyona göre POST isteği gönder
                 async with session.post(api_url, data=form_data) as response:
                     status_code = response.status
                     logger.info(f"ImgBB API cevap kodu: {status_code}")
                     
-                    # Yanıt içeriğini bir kez okuyalım
+                    # Yanıt içeriğini oku
                     response_text = await response.text()
+                    logger.info(f"ImgBB API yanıt uzunluğu: {len(response_text)} karakter")
                     
                     if status_code != 200:
-                        logger.error(f"ImgBB API hatası: {status_code}, Yanıt: {response_text}")
+                        logger.error(f"ImgBB API hatası: {status_code}, Yanıt: {response_text[:200]}...")
                         return None
                     
-                    # Okuduğumuz metni JSON'a çevirmeyi deneyelim
+                    # Yanıtı JSON'a çevir
                     try:
                         data = json.loads(response_text)
                     except Exception as json_error:
-                        logger.error(f"ImgBB API JSON parse hatası: {str(json_error)}, Raw yanıt: {response_text}")
+                        logger.error(f"ImgBB API JSON ayrıştırma hatası: {str(json_error)}")
+                        logger.error(f"Yanıt metni: {response_text[:200]}...")
                         return None
                     
+                    # Başarı durumunu kontrol et
                     if not data.get('success'):
                         logger.error(f"ImgBB API başarısız yanıt: {data}")
                         return None
                     
-                    # URL'i döndür
-                    logger.info(f"ImgBB yükleme başarılı: {data['data']['url'][:30]}...")
-                    return data['data']['url']
+                    # URL'i döndür (dokümantasyonda belirtildiği gibi)
+                    image_url = data['data']['url']
+                    logger.info(f"ImgBB yükleme başarılı: {image_url[:30]}...")
+                    return image_url
                     
         except Exception as e:
             logger.error(f"Görsel yükleme hatası: {str(e)}")

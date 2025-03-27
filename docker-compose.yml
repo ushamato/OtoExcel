@@ -25,6 +25,8 @@ services:
       - POSTGRES_ENCRYPTION_KEY=${POSTGRES_ENCRYPTION_KEY}
       - NOWPAYMENTS_API_KEY=${NOWPAYMENTS_API_KEY}
       - NOTIFICATION_BOT_TOKEN=${NOTIFICATION_BOT_TOKEN}
+      - IMG_API_KEY=${IMG_API_KEY}
+      - IMGBB_UPLOAD_URL=${IMGBB_UPLOAD_URL}
     depends_on:
       ottoexcel_db:
         condition: service_healthy
