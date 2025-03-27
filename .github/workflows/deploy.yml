@@ -63,7 +63,7 @@ jobs:
             POSTGRES_ENCRYPTION_KEY=${{ secrets.POSTGRES_ENCRYPTION_KEY }}
             NOWPAYMENTS_API_KEY=${{ secrets.NOWPAYMENTS_API_KEY }}
             NOTIFICATION_BOT_TOKEN=${{ secrets.NOTIFICATION_BOT_TOKEN }}
-            IMG_API_KEY=${{ secrets.IMG_API_KEY }}
+            IMGBB_API_KEY=${{ secrets.IMGBB_API_KEY }}
             IMGBB_UPLOAD_URL=${{ secrets.IMGBB_UPLOAD_URL }}
             DOCKER_IMAGE=ghcr.io/${{ env.REPO_LC }}:latest
             EOL
