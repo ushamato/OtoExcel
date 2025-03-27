@@ -1,11 +1,14 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
-from bot.config import logger, SUPER_ADMIN_ID
+from bot.config import logger, SUPER_ADMIN_ID, IMGBB_API_KEY, IMGBB_UPLOAD_URL
 from bot.database.db_manager import DatabaseManager
 from bot.utils.decorators import super_admin_required, admin_required
 from functools import wraps
 from sqlalchemy import text
 from datetime import datetime
+import aiohttp
+import base64
+from io import BytesIO
 
 def authorized_group_required(func):
     """Komutun sadece yetkili gruplarda çalışmasını sağlayan dekoratör"""
@@ -26,8 +29,7 @@ def authorized_group_required(func):
         # Özel mesajlarda sadece adminler kullanabilir - yukarıda kontrol edildi
         if chat.type == 'private':
             await update.message.reply_text(
-                "⛔️ Bu komut özel mesajlarda sadece adminler tarafından kullanılabilir!\n\n"
-                "ℹ️ Yetkili gruplarda bu komutu kullanabilirsiniz."
+                "⛔️ Bu komutu kullanma yetkiniz yok!"
             )
             return
         
@@ -47,6 +49,7 @@ def authorized_group_required(func):
 # Form durumları
 WAITING_FORM_FIELDS = 1
 WAITING_CONFIRMATION = 2
+WAITING_DEKONT = 3
 
 class FormHandlers:
     """Form işlemleri için handler sınıfı"""
@@ -93,10 +96,12 @@ class FormHandlers:
                 "2️⃣ Form alanlarını belirleyin.\n"
                 "❗️ Her alanı yeni bir satıra yazın.\n"
                 "📋 Alanların sırası önemlidir, kullanıcılar bu sırayla doldurur.\n\n"
+                "⚠️ Form içeriğinde DEKONT bilgisi bulunacaksa en son bilgi olarak GİRİNİZ.\n\n"
                 "Örnek:\n"
                 "Ad Soyad\n"
                 "Telefon\n"
-                "Email"
+                "Email\n"
+                "Dekont"
             )
             return WAITING_FORM_FIELDS
 
@@ -189,10 +194,12 @@ class FormHandlers:
                     "🔄 Form alanlarını tekrar girin:\n\n"
                     "❗️ Her alanı yeni bir satıra yazın.\n"
                     "📋 Alanların sırası önemlidir, kullanıcılar bu sırayla doldurur.\n\n"
+                    "⚠️ Form içeriğinde DEKONT bilgisi bulunacaksa en son bilgi olarak GİRİNİZ.\n\n"
                     "Örnek:\n"
                     "Ad Soyad\n"
                     "Telefon\n"
-                    "Email"
+                    "Email\n"
+                    "Dekont"
                 )
                 return WAITING_FORM_FIELDS
                 
@@ -241,6 +248,13 @@ class FormHandlers:
                 )
                 return
 
+            # Form alanlarını kontrol et, son alanda "dekont" var mı?
+            fields = form['fields'].split(',')
+            has_dekont = False
+            if fields and len(fields) > 0:
+                last_field = fields[-1].lower()
+                has_dekont = "dekont" in last_field
+
             # Eğer komutla birlikte veriler gönderildiyse
             message_text = update.message.text.strip()
             if '\n' in message_text:
@@ -272,7 +286,24 @@ class FormHandlers:
                         )
                     return
 
-                # Verileri kaydet
+                # Verileri kaydet (dekont olanlar hariç geçici olarak)
+                # Eğer dekont alanı varsa ve dekont görüntüsü yoksa, kullanıcıdan iste
+                if has_dekont and not context.user_data.get('dekont_url'):
+                    # Form verilerini context'e kaydet
+                    context.user_data['form_name'] = form_name
+                    context.user_data['form_data'] = "\n".join(data_lines)
+                    context.user_data['form_group_id'] = group_id
+                    
+                    # Fotoğraf gönderilmesini iste
+                    await update.message.reply_text(
+                        "📸 Lütfen dekont görselini gönderin...\n\n"
+                        "💳 Görsel JPEG, PNG veya PDF formatında olabilir.\n\n"
+                        "❓ İptal etmek için /iptal yazabilirsiniz."
+                    )
+                    
+                    return WAITING_DEKONT
+                
+                # Dekont yoksa normal işleme devam et
                 form_data = "\n".join(data_lines)
                 
                 # Form için doğru grup ID'sini al
@@ -315,6 +346,10 @@ class FormHandlers:
                     )
                     return
 
+                # Dekont URL'i varsa form datasına ekle
+                if context.user_data.get('dekont_url'):
+                    form_data = form_data + "\n" + context.user_data.get('dekont_url')
+                
                 submission_id = await self.db.save_form_data(
                     form_name=form_name,
                     group_id=form_group_id,
@@ -355,6 +390,14 @@ class FormHandlers:
                     if name_surname:
                         success_message += f"{name_surname}\n"
                     
+                    # Dekont eklendiğine dair bilgi
+                    if context.user_data.get('dekont_url'):
+                        success_message += "📸 Dekont görüntüsü başarıyla eklendi.\n"
+                        
+                    # Context'ten dekont bilgisini temizle
+                    if 'dekont_url' in context.user_data:
+                        del context.user_data['dekont_url']
+                    
                     success_message += "\n📝 Yeni veri girişi için:\n"
                     success_message += f"/form {form_name}"
                     
@@ -367,24 +410,29 @@ class FormHandlers:
             # Eğer sadece komut gönderildiyse form alanlarını göster
             field_list = "\n".join(f"{i+1}. {field}: " for i, field in enumerate(form['fields']))
             
+            dekont_info = ""
+            if has_dekont:
+                dekont_info = "\n\n📸 SON ADIM olarak dekont görüntüsü istenecektir."
+            
             await update.message.reply_text(
                 f"📝 '{form_name}' Formu Veri Girişi\n\n"
                 "Lütfen form verilerini aşağıdaki formatta girin:\n\n"
                 f"{field_list}\n\n"
                 "❗️ ÖNEMLİ NOT: Bilgileri gönderirken sadece bilgileri sırasıyla yazmanız yeterlidir.\n"
-                "Başına numara (1., 2., 3.) eklemeyin.\n\n"
+                "Başına numara (1., 2., 3.) eklemeyin." + dekont_info + "\n\n"
                 "❓ İptal etmek için /iptal yazabilirsiniz."
             )
             
             # Form bilgilerini context'e kaydet
             context.user_data['current_form'] = form_name
             context.user_data['current_group_id'] = group_id
+            context.user_data['has_dekont'] = has_dekont
             return WAITING_FORM_FIELDS
 
         except Exception as e:
             logger.error(f"Form komut hatası: {str(e)}")
             await update.message.reply_text("⛔️ Bir hata oluştu!")
-            return ConversationHandler.END 
+            return ConversationHandler.END
 
     async def check_and_deduct_admin_credits(self, admin_id: int, chat_id: int) -> bool:
         """Admin bakiyesini kontrol et ve form gönderimi için Bakiye düş"""
@@ -561,9 +609,193 @@ class FormHandlers:
                         "💡 Belirli bir tarih aralığı için rapor almak isterseniz:\n"
                         "/rapor form_adi GG.AA.YYYY GG.AA.YYYY\n\n"
                         "Örnek:\n"
-                        "/rapor papel 01.03.2025 18.03.2025"
+                        "/rapor yahoo 01.03.2025 18.03.2025"
                     )
             
         except Exception as e:
             logger.error(f"Rapor oluşturma hatası: {str(e)}")
             await update.message.reply_text("⛔️ Bir hata oluştu!")
+
+    async def upload_image_to_imgbb(self, photo_file):
+        """ImgBB API'sine görsel yükle ve URL'i döndür"""
+        try:
+            # Fotoğrafı indir
+            photo_data = await photo_file.download_as_bytearray()
+            
+            # Base64 kodlaması yap
+            base64_image = base64.b64encode(photo_data).decode('utf-8')
+            
+            # ImgBB API'sine gönder
+            async with aiohttp.ClientSession() as session:
+                params = {
+                    'key': IMGBB_API_KEY,
+                    'image': base64_image
+                }
+                
+                async with session.post(IMGBB_UPLOAD_URL, data=params) as response:
+                    if response.status != 200:
+                        logger.error(f"ImgBB API hatası: {response.status}")
+                        return None
+                    
+                    # Yanıtı JSON olarak al
+                    data = await response.json()
+                    
+                    if not data.get('success'):
+                        logger.error(f"ImgBB API yanıt hatası: {data}")
+                        return None
+                    
+                    # URL'i döndür
+                    return data['data']['url']
+                    
+        except Exception as e:
+            logger.error(f"Görsel yükleme hatası: {str(e)}")
+            return None
+
+    async def handle_dekont(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Dekont görüntüsünü işle"""
+        try:
+            # Kullanıcı iptal ettiyse
+            if update.message.text and update.message.text.lower() == '/iptal':
+                await self.cancel(update, context)
+                return ConversationHandler.END
+            
+            # Fotoğraf veya doküman kontrolü
+            photo = None
+            if update.message.photo:
+                # En büyük boyutlu fotoğrafı al
+                photo = update.message.photo[-1]
+            elif update.message.document:
+                # Doküman formatını kontrol et (jpg, png, pdf)
+                mime_type = update.message.document.mime_type
+                if mime_type and mime_type.startswith(('image/', 'application/pdf')):
+                    photo = update.message.document
+                else:
+                    await update.message.reply_text(
+                        "⛔️ Lütfen geçerli bir görsel formatı gönderin (JPEG, PNG, PDF).\n\n"
+                        "❓ İptal etmek için /iptal yazabilirsiniz."
+                    )
+                    return WAITING_DEKONT
+            
+            if not photo:
+                await update.message.reply_text(
+                    "⛔️ Lütfen bir görsel gönderin.\n\n"
+                    "💳 Dekont görüntüsü JPEG, PNG veya PDF formatında olmalıdır.\n\n"
+                    "❓ İptal etmek için /iptal yazabilirsiniz."
+                )
+                return WAITING_DEKONT
+            
+            # Yükleniyor mesajı
+            processing_message = await update.message.reply_text("⏳ Dekont görüntüsü yükleniyor...")
+            
+            # Fotoğrafı ImgBB'ye yükle
+            photo_file = await photo.get_file()
+            image_url = await self.upload_image_to_imgbb(photo_file)
+            
+            # Yükleme mesajını sil
+            await processing_message.delete()
+            
+            if not image_url:
+                await update.message.reply_text(
+                    "⛔️ Dekont görüntüsü yüklenirken bir hata oluştu. Lütfen tekrar deneyin.\n\n"
+                    "❓ İptal etmek için /iptal yazabilirsiniz."
+                )
+                return WAITING_DEKONT
+            
+            # URL'i context'e kaydet
+            context.user_data['dekont_url'] = image_url
+            
+            # Form bilgilerini al
+            form_name = context.user_data.get('form_name')
+            form_data = context.user_data.get('form_data')
+            form_group_id = context.user_data.get('form_group_id')
+            
+            if not form_name or not form_data or not form_group_id:
+                await update.message.reply_text("⛔️ Form bilgileri eksik! Lütfen tekrar deneyin.")
+                context.user_data.clear()
+                return ConversationHandler.END
+            
+            # Form için admin ID'sini al
+            with self.engine.connect() as conn:
+                result = conn.execute(text("""
+                    SELECT created_by FROM forms 
+                    WHERE form_name = :form_name
+                    LIMIT 1
+                """), {"form_name": form_name})
+                row = result.fetchone()
+                if row:
+                    form_admin_id = row[0]
+                else:
+                    logger.error(f"Form admin ID'si bulunamadı: {form_name}")
+                    await update.message.reply_text("⛔️ Form bilgisi alınırken bir hata oluştu!")
+                    context.user_data.clear()
+                    return ConversationHandler.END
+                
+            # Adminin bakiyesini kontrol et
+            has_credits = await self.check_and_deduct_admin_credits(form_admin_id, update.effective_chat.id)
+            
+            # Eğer bakiye yetersizse uyarı ver ve işlemi durdur
+            if not has_credits:
+                await update.message.reply_text(
+                    "⛔️ Bu form için yeterli kullanım hakkı bulunmuyor!\n\n"
+                    "Form sahibi adminin bakiyesi yetersiz. Lütfen admin ile iletişime geçin."
+                )
+                context.user_data.clear()
+                return ConversationHandler.END
+            
+            # Form datasına dekont URL'ini ekle
+            form_data_with_url = form_data + "\n" + image_url
+            
+            # Mükerrer kayıt kontrolü
+            is_duplicate = await self.db.check_duplicate_submission(
+                form_name=form_name,
+                group_id=form_group_id,
+                data=form_data_with_url
+            )
+            
+            if is_duplicate:
+                await update.message.reply_text(
+                    "⛔️ Bu form verisi excel tablosunda mevcut!"
+                )
+                context.user_data.clear()
+                return ConversationHandler.END
+            
+            # Form verisini kaydet
+            submission_id = await self.db.save_form_data(
+                form_name=form_name,
+                group_id=form_group_id,
+                user_id=update.effective_user.id,
+                chat_id=update.effective_chat.id,
+                data=form_data_with_url
+            )
+            
+            if submission_id:
+                # Başarı mesajını hazırla
+                success_message = f"✅ #{submission_id} Numaralı {form_name.capitalize()} Hesabı Excele işlendi. ✅\n"
+                
+                # İsim soyisim bilgisini bul
+                name_surname = None
+                data_lines = form_data.split('\n')
+                if data_lines and len(data_lines) > 0:
+                    name_surname = data_lines[0]  # İlk satırı isim-soyisim olarak kullan
+                
+                # İsim-Soyisim bilgisi varsa ekle
+                if name_surname:
+                    success_message += f"{name_surname}\n"
+                
+                success_message += "📸 Dekont görüntüsü başarıyla eklendi.\n\n"
+                success_message += "📝 Yeni veri girişi için:\n"
+                success_message += f"/form {form_name}"
+                
+                await update.message.reply_text(success_message)
+            else:
+                await update.message.reply_text("⛔️ Veriler kaydedilirken bir hata oluştu!")
+            
+            # Context'i temizle
+            context.user_data.clear()
+            return ConversationHandler.END
+            
+        except Exception as e:
+            logger.error(f"Dekont işleme hatası: {str(e)}")
+            await update.message.reply_text("⛔️ Bir hata oluştu!")
+            context.user_data.clear()
+            return ConversationHandler.END

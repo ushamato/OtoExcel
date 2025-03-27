@@ -11,6 +11,10 @@ SUPER_ADMIN_ID = int(os.getenv('SUPER_ADMIN_ID'))  # Süper admin Telegram ID'si
 NOWPAYMENTS_API_KEY = os.getenv('NOWPAYMENTS_API_KEY')  # NowPayments API anahtarı
 NOTIFICATION_BOT_TOKEN = os.getenv('NOTIFICATION_BOT_TOKEN')  # Bildirim botu token'ı
 
+# ImgBB API için gerekli ayarlar
+IMGBB_API_KEY = os.environ.get('IMGBB_API_KEY', '')
+IMGBB_UPLOAD_URL = os.environ.get('IMGBB_UPLOAD_URL', 'https://api.imgbb.com/1/upload')
+
 # Logger ayarları
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

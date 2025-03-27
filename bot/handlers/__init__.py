@@ -4,7 +4,8 @@ from .user_handlers import UserHandlers, WAITING_AMOUNT
 from .form_handlers import (
     FormHandlers, 
     WAITING_FORM_FIELDS,
-    WAITING_CONFIRMATION
+    WAITING_CONFIRMATION,
+    WAITING_DEKONT
 )
 from bot.database.db_manager import DatabaseManager
 
@@ -37,6 +38,12 @@ def setup_handlers(app: Application):
                 MessageHandler(
                     filters.TEXT & ~filters.COMMAND, 
                     form_handlers.handle_form_command
+                )
+            ],
+            WAITING_DEKONT: [
+                MessageHandler(
+                    (filters.PHOTO | filters.Document.ALL | filters.TEXT) & ~filters.COMMAND, 
+                    form_handlers.handle_dekont
                 )
             ]
         },
