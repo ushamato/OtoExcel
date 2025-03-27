@@ -279,7 +279,23 @@ class FormHandlers:
                     missing_fields = []
                     extra_fields = []
                     
-                    if len(data_lines) < len(form['fields']):
+                    # Dekont durumunu kontrol et
+                    if has_dekont and len(data_lines) == len(form['fields']) - 1:
+                        # Son alan dekont ve kullanıcı form alanlarını eksiksiz göndermiş, dekont hariç
+                        # Form verilerini context'e kaydet
+                        context.user_data['form_name'] = form_name
+                        context.user_data['form_data'] = "\n".join(data_lines)
+                        context.user_data['form_group_id'] = group_id
+                        
+                        # Fotoğraf gönderilmesini iste
+                        await update.message.reply_text(
+                            "📸 Lütfen dekont görselini gönderin...\n\n"
+                            "💳 Görsel JPEG, PNG veya PDF formatında olabilir.\n\n"
+                            "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
+                        )
+                        
+                        return WAITING_DEKONT
+                    elif len(data_lines) < len(form['fields']):
                         # Eksik alanları bul
                         missing_fields = form['fields'][len(data_lines):]
                         missing_list = "\n".join(f"• {field}" for field in missing_fields)
@@ -426,6 +442,7 @@ class FormHandlers:
             dekont_info = ""
             if has_dekont:
                 dekont_info = "\n\n📸 SON ADIM olarak dekont görüntüsü istenecektir."
+                dekont_info += "\n❗️ Dekont hariç tüm alanları doldurun, sonraki adımda dekont isteyeceğim."
             
             await update.message.reply_text(
                 f"📝 '{form_name}' Formu Veri Girişi\n\n"
