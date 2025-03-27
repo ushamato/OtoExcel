@@ -9,6 +9,7 @@ from datetime import datetime
 import aiohttp
 import base64
 from io import BytesIO
+import json
 
 def authorized_group_required(func):
     """Komutun sadece yetkili gruplarda çalışmasını sağlayan dekoratör"""
@@ -655,30 +656,54 @@ class FormHandlers:
             # Base64 kodlaması yap
             base64_image = base64.b64encode(photo_data).decode('utf-8')
             
+            # API anahtarını kontrol et
+            if not IMGBB_API_KEY or IMGBB_API_KEY == '':
+                logger.error("ImgBB API anahtarı bulunamadı veya boş!")
+                return None
+                
+            logger.info(f"ImgBB yükleme başlatılıyor. Resim boyutu: {len(photo_data)} byte")
+            
             # ImgBB API'sine gönder
             async with aiohttp.ClientSession() as session:
-                params = {
-                    'key': IMGBB_API_KEY,
-                    'image': base64_image
-                }
+                # API anahtarını URL'e ekle
+                api_url = f"{IMGBB_UPLOAD_URL}?key={IMGBB_API_KEY}"
                 
-                async with session.post(IMGBB_UPLOAD_URL, data=params) as response:
-                    if response.status != 200:
-                        logger.error(f"ImgBB API hatası: {response.status}")
+                # Form verilerini hazırla
+                form_data = aiohttp.FormData()
+                form_data.add_field('image', base64_image)
+                
+                logger.info(f"ImgBB API'sine istek gönderiliyor. URL: {IMGBB_UPLOAD_URL}")
+                
+                async with session.post(api_url, data=form_data) as response:
+                    status_code = response.status
+                    logger.info(f"ImgBB API cevap kodu: {status_code}")
+                    
+                    # Yanıt içeriğini bir kez okuyalım
+                    response_text = await response.text()
+                    
+                    if status_code != 200:
+                        logger.error(f"ImgBB API hatası: {status_code}, Yanıt: {response_text}")
                         return None
                     
-                    # Yanıtı JSON olarak al
-                    data = await response.json()
+                    # Okuduğumuz metni JSON'a çevirmeyi deneyelim
+                    try:
+                        data = json.loads(response_text)
+                    except Exception as json_error:
+                        logger.error(f"ImgBB API JSON parse hatası: {str(json_error)}, Raw yanıt: {response_text}")
+                        return None
                     
                     if not data.get('success'):
-                        logger.error(f"ImgBB API yanıt hatası: {data}")
+                        logger.error(f"ImgBB API başarısız yanıt: {data}")
                         return None
                     
                     # URL'i döndür
+                    logger.info(f"ImgBB yükleme başarılı: {data['data']['url'][:30]}...")
                     return data['data']['url']
                     
         except Exception as e:
             logger.error(f"Görsel yükleme hatası: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
     async def handle_dekont(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -716,16 +741,39 @@ class FormHandlers:
             # Yükleniyor mesajı
             processing_message = await update.message.reply_text("⏳ Dekont görüntüsü yükleniyor...")
             
-            # Fotoğrafı ImgBB'ye yükle
-            photo_file = await photo.get_file()
-            image_url = await self.upload_image_to_imgbb(photo_file)
+            try:
+                # Fotoğrafı ImgBB'ye yükle
+                photo_file = await photo.get_file()
+                
+                # API anahtarını kontrol et
+                if not IMGBB_API_KEY:
+                    logger.error("ImgBB API anahtarı eksik veya boş!")
+                    await update.message.reply_text(
+                        "⛔️ Dekont yüklenemiyor: API yapılandırma hatası!\n\n"
+                        "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
+                    )
+                    # Yükleme mesajını sil
+                    await processing_message.delete()
+                    return WAITING_DEKONT
+                
+                # Fotoğrafı ImgBB'ye yükle
+                image_url = await self.upload_image_to_imgbb(photo_file)
+                
+                # Yükleme mesajını sil
+                await processing_message.delete()
+                
+                if not image_url:
+                    await update.message.reply_text(
+                        "⛔️ Dekont görüntüsü yüklenirken bir hata oluştu. Lütfen tekrar deneyin.\n\n"
+                        "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
+                    )
+                    return WAITING_DEKONT
             
-            # Yükleme mesajını sil
-            await processing_message.delete()
-            
-            if not image_url:
+            except Exception as e:
+                logger.error(f"Dekont yükleme hatası: {str(e)}")
+                await processing_message.delete()
                 await update.message.reply_text(
-                    "⛔️ Dekont görüntüsü yüklenirken bir hata oluştu. Lütfen tekrar deneyin.\n\n"
+                    "⛔️ Dekont görüntüsü işlenirken bir hata oluştu. Lütfen tekrar deneyin.\n\n"
                     "🚫 İşlemi iptal etmek için 'iptal' yazmanız yeterlidir."
                 )
                 return WAITING_DEKONT
