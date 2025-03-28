@@ -68,7 +68,7 @@ jobs:
                   retries: 5
 
               ottoexcel_bot:
-                image: ${DOCKER_IMAGE:-ghcr.io/liraa97/ottoexcel:latest}
+                image: ${DOCKER_IMAGE:-ghcr.io/${{ env.REPO_LC }}:latest}
                 container_name: ottoexcel_bot
                 environment:
                   - BOT_TOKEN=${BOT_TOKEN}
