@@ -75,7 +75,7 @@ async def main():
         
         # Bot uygulamasını oluştur
         app = Application.builder()\
-            .token(os.environ.get("BOT_TOKEN"))\
+            .token(os.getenv("BOT_TOKEN"))\
             .persistence(persistence)\
             .concurrent_updates(True)\
             .arbitrary_callback_data(True)\
