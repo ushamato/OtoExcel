@@ -844,17 +844,30 @@ class DatabaseManager:
     async def delete_form(self, form_name: str, group_id: int) -> bool:
         try:
             with self.engine.connect() as conn:
+                # Önce form bilgilerini al
+                form_info = conn.execute(text("""
+                    SELECT group_id FROM forms
+                    WHERE form_name = :form_name
+                """), {"form_name": form_name}).fetchone()
+                
+                if not form_info:
+                    logger.error(f"Form bulunamadı: {form_name}")
+                    return False
+                    
+                # Veritabanındaki gerçek group_id'yi kullan
+                actual_group_id = form_info[0]
+                
                 # Önce form gönderilerini sil
                 conn.execute(text("""
                     DELETE FROM form_submissions
                     WHERE form_name = :form_name AND group_id = :group_id
-                """), {"form_name": form_name, "group_id": group_id})
+                """), {"form_name": form_name, "group_id": actual_group_id})
                 
                 # Sonra formu sil
                 result = conn.execute(text("""
                     DELETE FROM forms
                     WHERE form_name = :form_name AND group_id = :group_id
-                """), {"form_name": form_name, "group_id": group_id})
+                """), {"form_name": form_name, "group_id": actual_group_id})
                 
                 conn.commit()
                 return result.rowcount > 0
