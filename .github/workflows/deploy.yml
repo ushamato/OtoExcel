@@ -50,7 +50,7 @@ jobs:
             
             # docker-compose.yml dosyasını indirin (eğer yoksa)
             if [ ! -f docker-compose.yml ]; then
-              curl -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml
+              curl -o docker-compose.yml https://raw.githubusercontent.com/Liraa97/OttoExcel/main/docker-compose.yml
             fi
             
             # .env dosyasını oluştur
